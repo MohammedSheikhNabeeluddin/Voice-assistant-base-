@@ -83,7 +83,10 @@ class VoiceAccessibilityService : AccessibilityService() {
     fun performCopy() {
         val nodeInfo = rootInActiveWindow ?: return
         val selectedNode = findFocusedNode(nodeInfo)
-        selectedNode?.performAction(AccessibilityNodeInfo.ACTION_COPY)
+        if (selectedNode != null) {
+            selectedNode.performAction(AccessibilityNodeInfo.ACTION_COPY)
+            selectedNode.recycle()
+        }
         nodeInfo.recycle()
     }
 
@@ -93,7 +96,10 @@ class VoiceAccessibilityService : AccessibilityService() {
     fun performPaste() {
         val nodeInfo = rootInActiveWindow ?: return
         val selectedNode = findFocusedNode(nodeInfo)
-        selectedNode?.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+        if (selectedNode != null) {
+            selectedNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+            selectedNode.recycle()
+        }
         nodeInfo.recycle()
     }
 

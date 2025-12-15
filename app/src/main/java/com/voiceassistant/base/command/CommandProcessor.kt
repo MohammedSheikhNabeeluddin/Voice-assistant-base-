@@ -161,10 +161,20 @@ class CommandProcessor(private val context: Context) {
     }
 
     private fun extractMessageParts(command: String): Pair<String, String> {
-        // Extract recipient and message from command
-        val parts = command.split("to", "message", "text")
-        val recipient = parts.getOrNull(1)?.trim() ?: ""
-        val message = parts.getOrNull(2)?.trim() ?: ""
+        // Extract recipient and message from command like "send message to John saying Hello"
+        val toPattern = "to\\s+(.+?)\\s+saying\\s+(.+)".toRegex(RegexOption.IGNORE_CASE)
+        val match = toPattern.find(command)
+        
+        if (match != null) {
+            val recipient = match.groupValues[1].trim()
+            val message = match.groupValues[2].trim()
+            return Pair(recipient, message)
+        }
+        
+        // Fallback: try simple "to" split
+        val parts = command.split(" to ", ignoreCase = true)
+        val recipient = parts.getOrNull(1)?.split(" saying ", ignoreCase = true)?.get(0)?.trim() ?: ""
+        val message = parts.getOrNull(1)?.split(" saying ", ignoreCase = true)?.getOrNull(1)?.trim() ?: ""
         return Pair(recipient, message)
     }
 

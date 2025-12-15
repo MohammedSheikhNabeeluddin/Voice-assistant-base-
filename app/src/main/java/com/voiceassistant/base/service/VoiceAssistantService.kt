@@ -24,6 +24,7 @@ class VoiceAssistantService : Service() {
     private lateinit var commandProcessor: CommandProcessor
     private var isListening = false
     private var isAwake = false
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
     companion object {
         private const val NOTIFICATION_ID = 1001
@@ -100,7 +101,7 @@ class VoiceAssistantService : Service() {
                 override fun onError(error: Int) {
                     isListening = false
                     // Restart listening after error
-                    android.os.Handler(mainLooper).postDelayed({
+                    handler.postDelayed({
                         if (isServiceRunning) {
                             startListening()
                         }
@@ -112,7 +113,7 @@ class VoiceAssistantService : Service() {
                         processVoiceInput(matches)
                     }
                     // Restart listening
-                    android.os.Handler(mainLooper).postDelayed({
+                    handler.postDelayed({
                         if (isServiceRunning) {
                             startListening()
                         }
@@ -160,7 +161,7 @@ class VoiceAssistantService : Service() {
                     updateNotification("Command failed - Sleeping...")
                 }
                 // Return to sleep mode
-                android.os.Handler(mainLooper).postDelayed({
+                handler.postDelayed({
                     isAwake = false
                     updateNotification("Listening for wake word...")
                 }, 2000)
