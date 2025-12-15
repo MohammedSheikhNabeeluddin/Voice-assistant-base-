@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Voice Assistant Base</string>
+    <string name="wake_word_info">Say \"Hey Assistant\" to wake up the voice assistant</string>
+    <string name="features_info">Features: Open apps, scroll, copy/paste, send messages, make calls, set alarms/timers, clear background apps, and more!</string>
+    <string name="accessibility_service_description">Voice Assistant requires accessibility service to perform actions like scrolling, clicking, and text input within apps.</string>
+</resources>
