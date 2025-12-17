@@ -22,6 +22,18 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       
+      # Create debug keystore if not present (needed for release signing in CI without proper keystore)
+      # For production releases, configure RELEASE_KEYSTORE_* secrets instead
+      - name: Create debug keystore for CI
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkey -v -keystore ~/.android/debug.keystore -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+      
       - name: Build with Gradle
         run: ./gradlew build
       
