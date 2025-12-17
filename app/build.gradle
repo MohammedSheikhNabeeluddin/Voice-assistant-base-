@@ -15,10 +15,27 @@ android {
         versionName "1.0"
     }
 
-    buildTypes {
+    signingConfigs {
         release {
+            // For building unsigned release APK, or sign with debug key for testing
+            // In production, use proper keystore
+            storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+            minifyEnabled false
+        }
+        release {
+            debuggable false
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 
@@ -30,6 +47,13 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+    
+    // Output APK with custom name
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "VoiceAssistant-${variant.versionName}-${variant.buildType.name}.apk"
+        }
+    }
 }
 
 dependencies {
@@ -39,10 +63,11 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.work:work-runtime-ktx:2.9.0'
     implementation 'androidx.lifecycle:lifecycle-service:2.7.0'
+    implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
 }
 
 android {
-    lintOptions {
+    lint {
         abortOnError false
         checkReleaseBuilds false
     }
