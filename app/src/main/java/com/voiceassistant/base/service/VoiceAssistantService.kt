@@ -66,6 +66,7 @@ class VoiceAssistantService : Service() {
     
     /**
      * Acquire partial wake lock to keep service running on lock screen
+     * Using 3 minutes timeout, renewed as needed
      */
     private fun acquireWakeLock() {
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
@@ -73,7 +74,7 @@ class VoiceAssistantService : Service() {
             PowerManager.PARTIAL_WAKE_LOCK,
             "VoiceAssistant:WakeLock"
         ).apply {
-            acquire(10 * 60 * 1000L) // 10 minutes max
+            acquire(3 * 60 * 1000L) // 3 minutes, renewed during listening
         }
     }
     
@@ -87,6 +88,20 @@ class VoiceAssistantService : Service() {
             }
         }
         wakeLock = null
+    }
+    
+    /**
+     * Renew wake lock to keep service running
+     */
+    private fun renewWakeLock() {
+        wakeLock?.let {
+            if (it.isHeld) {
+                // Wake lock already active, no need to renew
+                return
+            }
+        }
+        // Re-acquire if not held
+        acquireWakeLock()
     }
 
     private fun createNotificationChannel() {
@@ -218,12 +233,15 @@ class VoiceAssistantService : Service() {
 
     private fun startListening() {
         if (!isListening && speechRecognizer != null) {
+            // Renew wake lock while actively listening
+            renewWakeLock()
+            
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1500L)
             }
             try {
                 speechRecognizer?.startListening(intent)

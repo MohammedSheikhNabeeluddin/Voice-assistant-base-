@@ -64,7 +64,7 @@ class MainActivity : AppCompatActivity() {
     // Debounce handler to prevent double-tap issues
     private val debounceHandler = Handler(Looper.getMainLooper())
     private var isStartButtonEnabled = true
-    private val DEBOUNCE_DELAY_MS = 1000L
+    private val DEBOUNCE_DELAY_MS = 500L
     
     // Broadcast receiver for transcript updates
     private val transcriptReceiver = object : BroadcastReceiver() {
