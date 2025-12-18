@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.voiceassistant.base.service.VoiceAccessibilityService
 import com.voiceassistant.base.service.VoiceAssistantService
+import com.voiceassistant.base.util.PermissionHelper
 
 /**
  * Main activity for the Voice Assistant
@@ -233,48 +234,22 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun checkAllPermissionsGranted(): Boolean {
-        val hasMic = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
+        // Check all required permissions using PermissionHelper
+        val hasAllRequired = PermissionHelper.hasAllPermissions(this)
         
         val hasOverlay = Settings.canDrawOverlays(this)
         
-        val hasNotification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                this, Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
+        // Notification permission is optional - Voice Assistant can work without it
         
-        return hasMic && hasOverlay && hasNotification
+        return hasAllRequired && hasOverlay
     }
     
     private fun requestMissingPermissions() {
-        val permissions = mutableListOf<String>()
+        // Get missing required permissions from PermissionHelper
+        val permissions = PermissionHelper.getMissingPermissions(this).toMutableList()
         
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
-            != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.RECORD_AUDIO)
-        }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
-                != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-        
-        // Add other permissions
-        listOf(
-            Manifest.permission.CALL_PHONE,
-            Manifest.permission.READ_CONTACTS,
-            Manifest.permission.SEND_SMS
-        ).forEach { permission ->
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(permission)
-            }
-        }
+        // Add optional notification permission (don't block on it)
+        permissions.addAll(PermissionHelper.getMissingOptionalPermissions(this))
         
         if (permissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, permissions.toTypedArray(), PERMISSION_REQUEST_CODE)
@@ -298,8 +273,11 @@ class MainActivity : AppCompatActivity() {
         
         when (requestCode) {
             PERMISSION_REQUEST_CODE -> {
-                if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                    Toast.makeText(this, "Permissions granted", Toast.LENGTH_SHORT).show()
+                // Check if all required permissions are granted (notification is optional)
+                val hasAllRequired = PermissionHelper.hasAllPermissions(this)
+                
+                if (hasAllRequired) {
+                    Toast.makeText(this, "Required permissions granted", Toast.LENGTH_SHORT).show()
                     if (Settings.canDrawOverlays(this)) {
                         startVoiceAssistant()
                     } else {
@@ -310,7 +288,8 @@ class MainActivity : AppCompatActivity() {
                         startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
                     }
                 } else {
-                    Toast.makeText(this, "Some permissions were denied", Toast.LENGTH_LONG).show()
+                    val missingCount = PermissionHelper.getMissingPermissions(this).size
+                    Toast.makeText(this, "$missingCount required permission(s) denied. Please grant permissions to use voice assistant.", Toast.LENGTH_LONG).show()
                 }
             }
             MIC_PERMISSION_REQUEST_CODE -> {
