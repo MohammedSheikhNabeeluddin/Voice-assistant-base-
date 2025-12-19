@@ -24,20 +24,33 @@ import java.util.Calendar
  */
 class CommandProcessor(private val context: Context) {
 
+    private val TAG = "CommandProcessor"
+
     fun processCommand(command: String, callback: (Boolean, String) -> Unit) {
+        android.util.Log.d(TAG, "Processing command: $command")
         try {
             when {
-                // App management
-                command.contains("open") && command.contains("app") -> {
+                // System settings (check before general "open" to avoid conflicts)
+                command.contains("open settings") -> {
+                    openSettings()
+                    callback(true, "Opening settings")
+                }
+                command.contains("enable accessibility") || command.contains("open accessibility") -> {
+                    openAccessibilitySettings()
+                    callback(true, "Opening accessibility settings")
+                }
+                
+                // App management - "open" command now works without requiring "app" keyword
+                command.contains("open") -> {
                     val appName = extractAppName(command)
                     val response = openApp(appName)
                     callback(response != null, response ?: "Failed to open app")
                 }
-                command.contains("close") && command.contains("app") -> {
+                command.contains("close app") || command.contains("close current") -> {
                     closeCurrentApp()
                     callback(true, "Closing current app")
                 }
-                command.contains("switch to") -> {
+                command.contains("switch to") || command.contains("switch") -> {
                     val appName = extractAppName(command)
                     val response = openApp(appName)
                     callback(response != null, response ?: "Failed to switch to app")
@@ -153,16 +166,6 @@ class CommandProcessor(private val context: Context) {
                     callback(true, "Starting countdown for $minutes minute${if (minutes != 1) "s" else ""}")
                 }
 
-                // System settings
-                command.contains("open settings") -> {
-                    openSettings()
-                    callback(true, "Opening settings")
-                }
-                command.contains("enable accessibility") -> {
-                    openAccessibilitySettings()
-                    callback(true, "Opening accessibility settings")
-                }
-
                 else -> {
                     callback(false, "I don't understand that command. Please try again")
                 }
@@ -174,10 +177,10 @@ class CommandProcessor(private val context: Context) {
     }
 
     private fun extractAppName(command: String): String {
-        val keywords = listOf("open", "app", "close", "switch to", "download", "install", "clear", "background")
+        val keywords = listOf("open", "app", "close", "current", "switch to", "switch", "download", "install", "clear", "background")
         var appName = command
         keywords.forEach { keyword ->
-            appName = appName.replace(keyword, "").trim()
+            appName = appName.replace(keyword, "", ignoreCase = true).trim()
         }
         return appName.trim()
     }
@@ -233,18 +236,24 @@ class CommandProcessor(private val context: Context) {
 
     private fun openApp(appName: String): String? {
         try {
+            android.util.Log.d(TAG, "Attempting to open app: $appName")
             val packageName = getPackageNameForApp(appName)
+            android.util.Log.d(TAG, "Resolved package name: $packageName")
+            
             val packageManager = context.packageManager
             val intent = packageManager.getLaunchIntentForPackage(packageName)
             
             return if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(intent)
+                android.util.Log.d(TAG, "Successfully started app: $appName")
                 "Opening $appName"
             } else {
+                android.util.Log.w(TAG, "No launch intent found for package: $packageName")
                 "Could not find $appName. Please make sure it's installed"
             }
         } catch (e: Exception) {
+            android.util.Log.e(TAG, "Error opening app: $appName", e)
             e.printStackTrace()
             return "Error opening $appName: ${e.message}"
         }
