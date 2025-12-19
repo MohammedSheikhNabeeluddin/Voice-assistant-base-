@@ -23,6 +23,17 @@ class VoiceAccessibilityService : AccessibilityService() {
         private const val TAG = "VoiceAccessibilityService"
         var instance: VoiceAccessibilityService? = null
     }
+    
+    /**
+     * Safely recycle an AccessibilityNodeInfo to avoid memory leaks
+     */
+    private fun safeRecycle(nodeInfo: AccessibilityNodeInfo?) {
+        try {
+            nodeInfo?.recycle()
+        } catch (e: Exception) {
+            Log.w(TAG, "safeRecycle: Error recycling node", e)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -67,7 +78,7 @@ class VoiceAccessibilityService : AccessibilityService() {
             result
         } catch (e: Exception) {
             Log.e(TAG, "performScrollUp: Error performing scroll up", e)
-            try { nodeInfo.recycle() } catch (ignored: Exception) {}
+            safeRecycle(nodeInfo)
             false
         }
     }
@@ -92,7 +103,7 @@ class VoiceAccessibilityService : AccessibilityService() {
             result
         } catch (e: Exception) {
             Log.e(TAG, "performScrollDown: Error performing scroll down", e)
-            try { nodeInfo.recycle() } catch (ignored: Exception) {}
+            safeRecycle(nodeInfo)
             false
         }
     }
@@ -176,7 +187,7 @@ class VoiceAccessibilityService : AccessibilityService() {
             result
         } catch (e: Exception) {
             Log.e(TAG, "performCopy: Error performing copy", e)
-            try { nodeInfo.recycle() } catch (ignored: Exception) {}
+            safeRecycle(nodeInfo)
             false
         }
     }
@@ -209,7 +220,7 @@ class VoiceAccessibilityService : AccessibilityService() {
             result
         } catch (e: Exception) {
             Log.e(TAG, "performPaste: Error performing paste", e)
-            try { nodeInfo.recycle() } catch (ignored: Exception) {}
+            safeRecycle(nodeInfo)
             false
         }
     }
@@ -251,7 +262,7 @@ class VoiceAccessibilityService : AccessibilityService() {
             result
         } catch (e: Exception) {
             Log.e(TAG, "performType: Error performing type", e)
-            try { nodeInfo.recycle() } catch (ignored: Exception) {}
+            safeRecycle(nodeInfo)
             false
         }
     }
@@ -367,7 +378,7 @@ class VoiceAccessibilityService : AccessibilityService() {
             result
         } catch (e: Exception) {
             Log.e(TAG, "clickOnText: Error clicking on text", e)
-            try { nodeInfo.recycle() } catch (ignored: Exception) {}
+            safeRecycle(nodeInfo)
             false
         }
     }

@@ -154,7 +154,7 @@ class CommandProcessor(private val context: Context) {
                         callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
                     }
                 }
-                normalizedCommand.contains("go home") || normalizedCommand == "home" -> {
+                normalizedCommand.contains("go home") || normalizedCommand == "home" || normalizedCommand.contains("home screen") -> {
                     Log.d(TAG, "Matched: go home")
                     if (isAccessibilityServiceAvailable()) {
                         val success = VoiceAccessibilityService.instance?.performHome()
@@ -339,6 +339,8 @@ class CommandProcessor(private val context: Context) {
 
     private fun extractDuration(command: String): Int {
         // Extract duration in seconds
+        // NOTE: When no time unit is specified (minute/hour), defaults to minutes
+        // Example: "set timer 5" becomes 5 minutes, "set timer 5 minutes" becomes 5 minutes
         val numberPattern = "(\\d+)".toRegex()
         val match = numberPattern.find(command)
         val number = match?.value?.toInt() ?: 1
