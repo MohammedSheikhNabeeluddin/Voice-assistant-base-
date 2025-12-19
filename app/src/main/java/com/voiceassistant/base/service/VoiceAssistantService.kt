@@ -12,11 +12,14 @@ import android.os.PowerManager
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.voiceassistant.base.MainActivity
 import com.voiceassistant.base.R
 import com.voiceassistant.base.command.CommandProcessor
+import java.util.Locale
 
 /**
  * Background foreground service that continuously listens for wake word
@@ -26,8 +29,11 @@ class VoiceAssistantService : Service() {
 
     private var speechRecognizer: SpeechRecognizer? = null
     private lateinit var commandProcessor: CommandProcessor
+    private var textToSpeech: TextToSpeech? = null
+    private var isTtsReady = false
     private var isListening = false
     private var isAwake = false
+    private var isSpeaking = false
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -51,6 +57,7 @@ class VoiceAssistantService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification("Listening for wake word..."))
         acquireWakeLock()
+        initializeTextToSpeech()
         initializeSpeechRecognizer()
         startListening()
         broadcastStatusUpdate()
@@ -88,6 +95,62 @@ class VoiceAssistantService : Service() {
             }
         }
         wakeLock = null
+    }
+    
+    /**
+     * Initialize Text-to-Speech engine
+     */
+    private fun initializeTextToSpeech() {
+        textToSpeech = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val result = textToSpeech?.setLanguage(Locale.US)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    broadcastTranscript("Text-to-Speech language not supported", false)
+                    isTtsReady = false
+                } else {
+                    isTtsReady = true
+                    // Set TTS parameters for better responsiveness
+                    textToSpeech?.setSpeechRate(1.0f)
+                    textToSpeech?.setPitch(1.0f)
+                    
+                    // Set utterance listener to know when speaking is done
+                    textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {
+                            isSpeaking = true
+                        }
+
+                        override fun onDone(utteranceId: String?) {
+                            isSpeaking = false
+                        }
+
+                        override fun onError(utteranceId: String?) {
+                            isSpeaking = false
+                        }
+                    })
+                }
+            } else {
+                broadcastTranscript("Text-to-Speech initialization failed", false)
+                isTtsReady = false
+            }
+        }
+    }
+    
+    /**
+     * Speak response using Text-to-Speech
+     */
+    private fun reply(message: String) {
+        if (isTtsReady && textToSpeech != null) {
+            // Stop any ongoing speech
+            textToSpeech?.stop()
+            
+            // Speak the message
+            val params = android.os.Bundle()
+            params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "assistantReply")
+            textToSpeech?.speak(message, TextToSpeech.QUEUE_FLUSH, params, "assistantReply")
+        }
+        
+        // Always broadcast transcript even if TTS fails
+        broadcastTranscript(message, false)
     }
     
     /**
@@ -268,7 +331,7 @@ class VoiceAssistantService : Service() {
             if (input.contains(WAKE_WORD)) {
                 isAwake = true
                 updateNotification("Awake - Listening for command...")
-                broadcastTranscript("Ready for your command...", false)
+                reply("Yes?")
             }
         } else {
             // Process command
@@ -278,13 +341,9 @@ class VoiceAssistantService : Service() {
             val command = input.replace(WAKE_WORD, "").trim()
             
             if (command.isNotEmpty()) {
-                commandProcessor.processCommand(command) { success ->
-                    val response = if (success) {
-                        "Command executed successfully"
-                    } else {
-                        "Command not recognized"
-                    }
-                    broadcastTranscript(response, false)
+                commandProcessor.processCommand(command) { success, responseMessage ->
+                    // Use the reply function to provide verbal and text feedback
+                    reply(responseMessage)
                     
                     if (success) {
                         updateNotification("Command executed - Sleeping...")
@@ -292,15 +351,15 @@ class VoiceAssistantService : Service() {
                         updateNotification("Command failed - Sleeping...")
                     }
                     
-                    // Return to sleep mode
+                    // Return to sleep mode after speaking is done or a timeout
                     handler.postDelayed({
                         isAwake = false
                         updateNotification("Listening for wake word...")
-                    }, 2000)
+                    }, if (isSpeaking) 3000 else 2000)
                 }
             } else {
                 // Only wake word was detected, wait for actual command
-                broadcastTranscript("Listening for your command...", false)
+                reply("Listening for your command...")
             }
         }
     }
@@ -332,6 +391,12 @@ class VoiceAssistantService : Service() {
         handler.removeCallbacksAndMessages(null)
         speechRecognizer?.destroy()
         speechRecognizer = null
+        
+        // Cleanup Text-to-Speech
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
+        
         broadcastStatusUpdate()
     }
 }
