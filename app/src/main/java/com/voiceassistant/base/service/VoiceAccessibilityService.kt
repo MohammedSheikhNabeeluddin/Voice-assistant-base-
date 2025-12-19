@@ -21,6 +21,7 @@ class VoiceAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "VoiceAccessibilityService"
+        private const val SCROLL_GESTURE_DURATION_MS = 300L
         var instance: VoiceAccessibilityService? = null
     }
     
@@ -60,52 +61,161 @@ class VoiceAccessibilityService : AccessibilityService() {
 
     /**
      * Perform scroll up action
+     * Uses accessibility node action first, falls back to gesture-based scrolling
      * @return true if action was performed successfully, false otherwise
      */
     fun performScrollUp(): Boolean {
         Log.d(TAG, "performScrollUp: Attempting scroll up action")
         
+        // Try accessibility node action first
         val nodeInfo = rootInActiveWindow
-        if (nodeInfo == null) {
-            Log.w(TAG, "performScrollUp: rootInActiveWindow is null, cannot scroll")
-            return false
+        if (nodeInfo != null) {
+            try {
+                val scrollableNode = findScrollableNode(nodeInfo)
+                if (scrollableNode != null) {
+                    val result = scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+                    Log.d(TAG, "performScrollUp: Node scroll action result=$result")
+                    // Recycle nodes carefully to avoid double-recycling
+                    if (scrollableNode !== nodeInfo) {
+                        safeRecycle(scrollableNode)
+                        safeRecycle(nodeInfo)
+                    } else {
+                        // scrollableNode is the same as nodeInfo, only recycle once
+                        safeRecycle(nodeInfo)
+                    }
+                    if (result) return true
+                } else {
+                    safeRecycle(nodeInfo)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "performScrollUp: Node action failed, falling back to gesture", e)
+                safeRecycle(nodeInfo)
+            }
         }
         
-        return try {
-            val result = nodeInfo.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
-            Log.d(TAG, "performScrollUp: Action result=$result")
-            nodeInfo.recycle()
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "performScrollUp: Error performing scroll up", e)
-            safeRecycle(nodeInfo)
-            false
-        }
+        // Fallback: Use gesture-based scrolling (swipe down to scroll up)
+        Log.d(TAG, "performScrollUp: Using gesture-based scroll")
+        return performScrollGesture(isScrollUp = true)
     }
 
     /**
      * Perform scroll down action
+     * Uses accessibility node action first, falls back to gesture-based scrolling
      * @return true if action was performed successfully, false otherwise
      */
     fun performScrollDown(): Boolean {
         Log.d(TAG, "performScrollDown: Attempting scroll down action")
         
+        // Try accessibility node action first
         val nodeInfo = rootInActiveWindow
-        if (nodeInfo == null) {
-            Log.w(TAG, "performScrollDown: rootInActiveWindow is null, cannot scroll")
-            return false
+        if (nodeInfo != null) {
+            try {
+                val scrollableNode = findScrollableNode(nodeInfo)
+                if (scrollableNode != null) {
+                    val result = scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                    Log.d(TAG, "performScrollDown: Node scroll action result=$result")
+                    // Recycle nodes carefully to avoid double-recycling
+                    if (scrollableNode !== nodeInfo) {
+                        safeRecycle(scrollableNode)
+                        safeRecycle(nodeInfo)
+                    } else {
+                        // scrollableNode is the same as nodeInfo, only recycle once
+                        safeRecycle(nodeInfo)
+                    }
+                    if (result) return true
+                } else {
+                    safeRecycle(nodeInfo)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "performScrollDown: Node action failed, falling back to gesture", e)
+                safeRecycle(nodeInfo)
+            }
         }
         
+        // Fallback: Use gesture-based scrolling (swipe up to scroll down)
+        Log.d(TAG, "performScrollDown: Using gesture-based scroll")
+        return performScrollGesture(isScrollUp = false)
+    }
+
+    /**
+     * Perform gesture-based scrolling using dispatchGesture
+     * @param isScrollUp true to scroll up (swipe down), false to scroll down (swipe up)
+     * @return true if gesture was dispatched successfully
+     */
+    private fun performScrollGesture(isScrollUp: Boolean): Boolean {
         return try {
-            val result = nodeInfo.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-            Log.d(TAG, "performScrollDown: Action result=$result")
-            nodeInfo.recycle()
+            // Get screen dimensions using service resources for accurate measurements
+            val displayMetrics = resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
+            
+            // Calculate scroll gesture coordinates (center of screen)
+            val centerX = screenWidth / 2f
+            val startY: Float
+            val endY: Float
+            
+            if (isScrollUp) {
+                // Scroll up = swipe down (finger moves from top to bottom)
+                startY = screenHeight * 0.3f
+                endY = screenHeight * 0.7f
+            } else {
+                // Scroll down = swipe up (finger moves from bottom to top)
+                startY = screenHeight * 0.7f
+                endY = screenHeight * 0.3f
+            }
+            
+            val path = Path()
+            path.moveTo(centerX, startY)
+            path.lineTo(centerX, endY)
+            
+            val gestureBuilder = GestureDescription.Builder()
+            val strokeDescription = GestureDescription.StrokeDescription(path, 0, SCROLL_GESTURE_DURATION_MS)
+            gestureBuilder.addStroke(strokeDescription)
+            
+            val gesture = gestureBuilder.build()
+            val result = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    Log.d(TAG, "performScrollGesture: Gesture completed successfully")
+                }
+                
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    Log.w(TAG, "performScrollGesture: Gesture was cancelled")
+                }
+            }, null)
+            
+            Log.d(TAG, "performScrollGesture: dispatchGesture result=$result, direction=${if (isScrollUp) "up" else "down"}")
             result
         } catch (e: Exception) {
-            Log.e(TAG, "performScrollDown: Error performing scroll down", e)
-            safeRecycle(nodeInfo)
+            Log.e(TAG, "performScrollGesture: Error performing scroll gesture", e)
             false
         }
+    }
+
+    /**
+     * Find a scrollable node in the accessibility tree
+     * Note: Caller is responsible for recycling the returned node
+     * @return the first scrollable node found, or null if none
+     */
+    private fun findScrollableNode(nodeInfo: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (nodeInfo.isScrollable) {
+            return nodeInfo
+        }
+        
+        for (i in 0 until nodeInfo.childCount) {
+            val child = nodeInfo.getChild(i) ?: continue
+            val scrollable = findScrollableNode(child)
+            if (scrollable != null) {
+                // If the scrollable node is the child itself, don't recycle it
+                // If the scrollable node is deeper in the tree, recycle the intermediate child
+                if (scrollable !== child) {
+                    child.recycle()
+                }
+                return scrollable
+            }
+            child.recycle()
+        }
+        
+        return null
     }
 
     /**

@@ -44,6 +44,35 @@
     <uses-permission android:name="android.permission.READ_CLIPBOARD_IN_BACKGROUND"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- Package visibility for Android 11+ (API 30+) -->
+    <!-- Required for PackageManager.getLaunchIntentForPackage to work -->
+    <queries>
+        <!-- Allow querying all apps for launching by name -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!-- Allow querying apps that can handle phone calls -->
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+        </intent>
+        <!-- Allow querying apps that can set alarms/timers -->
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_TIMER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_TIMERS" />
+        </intent>
+        <!-- Allow querying Play Store -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="market" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
