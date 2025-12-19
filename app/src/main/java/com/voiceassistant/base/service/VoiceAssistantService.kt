@@ -14,6 +14,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.voiceassistant.base.MainActivity
@@ -24,6 +25,13 @@ import java.util.Locale
 /**
  * Background foreground service that continuously listens for wake word
  * and processes voice commands. Works on lock screen and in background.
+ * 
+ * Flow:
+ * 1. Service starts and begins listening for wake word ("hey assistant")
+ * 2. When wake word is detected, service becomes "awake" and waits for command
+ * 3. Command is passed to CommandProcessor for execution
+ * 4. Response is provided via TTS and transcript
+ * 5. Service returns to listening for wake word
  */
 class VoiceAssistantService : Service() {
 
@@ -38,6 +46,7 @@ class VoiceAssistantService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
 
     companion object {
+        private const val TAG = "VoiceAssistantService"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "voice_assistant_channel"
         const val WAKE_WORD = "hey assistant"
@@ -52,6 +61,7 @@ class VoiceAssistantService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.i(TAG, "onCreate: Starting Voice Assistant Service")
         isServiceRunning = true
         commandProcessor = CommandProcessor(this)
         createNotificationChannel()
@@ -61,9 +71,11 @@ class VoiceAssistantService : Service() {
         initializeSpeechRecognizer()
         startListening()
         broadcastStatusUpdate()
+        Log.i(TAG, "onCreate: Voice Assistant Service initialized successfully")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand: Service start requested")
         return START_STICKY
     }
 
@@ -209,7 +221,10 @@ class VoiceAssistantService : Service() {
     }
 
     private fun initializeSpeechRecognizer() {
+        Log.d(TAG, "initializeSpeechRecognizer: Initializing speech recognizer")
+        
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            Log.e(TAG, "initializeSpeechRecognizer: Speech recognition not available on this device")
             broadcastTranscript("Speech recognition not available on this device", false)
             return
         }
@@ -217,22 +232,27 @@ class VoiceAssistantService : Service() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: android.os.Bundle?) {
+                    Log.d(TAG, "RecognitionListener: Ready for speech")
                     isListening = true
                 }
 
-                override fun onBeginningOfSpeech() {}
+                override fun onBeginningOfSpeech() {
+                    Log.d(TAG, "RecognitionListener: Beginning of speech detected")
+                }
 
                 override fun onRmsChanged(rmsdB: Float) {}
 
                 override fun onBufferReceived(buffer: ByteArray?) {}
 
                 override fun onEndOfSpeech() {
+                    Log.d(TAG, "RecognitionListener: End of speech")
                     isListening = false
                 }
 
                 override fun onError(error: Int) {
                     isListening = false
                     val errorMessage = getErrorMessage(error)
+                    Log.w(TAG, "RecognitionListener: Error occurred - $errorMessage (code=$error)")
                     
                     // Restart listening after error with appropriate delay
                     val delayMs = when (error) {
@@ -242,6 +262,7 @@ class VoiceAssistantService : Service() {
                         else -> 1000L
                     }
                     
+                    Log.d(TAG, "RecognitionListener: Will restart listening after ${delayMs}ms")
                     handler.postDelayed({
                         if (isServiceRunning) {
                             startListening()
@@ -250,7 +271,9 @@ class VoiceAssistantService : Service() {
                 }
 
                 override fun onResults(results: android.os.Bundle?) {
+                    Log.d(TAG, "RecognitionListener: Results received")
                     results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.let { matches ->
+                        Log.d(TAG, "RecognitionListener: Matches count=${matches.size}")
                         processVoiceInput(matches)
                     }
                     // Restart listening
@@ -265,6 +288,7 @@ class VoiceAssistantService : Service() {
                     // Handle partial results for better responsiveness
                     partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.let { matches ->
                         val input = matches.firstOrNull()?.lowercase() ?: return
+                        Log.v(TAG, "RecognitionListener: Partial result - '$input'")
                         // Check for wake word in partial results for faster response
                         if (!isAwake && input.contains(WAKE_WORD)) {
                             isAwake = true
@@ -295,6 +319,8 @@ class VoiceAssistantService : Service() {
     }
 
     private fun startListening() {
+        Log.d(TAG, "startListening: isListening=$isListening, speechRecognizer=${speechRecognizer != null}")
+        
         if (!isListening && speechRecognizer != null) {
             // Renew wake lock while actively listening
             renewWakeLock()
@@ -308,8 +334,9 @@ class VoiceAssistantService : Service() {
             }
             try {
                 speechRecognizer?.startListening(intent)
+                Log.d(TAG, "startListening: Speech recognizer started successfully")
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "startListening: Error starting speech recognizer", e)
                 // Retry after delay
                 handler.postDelayed({
                     if (isServiceRunning) {
@@ -322,6 +349,8 @@ class VoiceAssistantService : Service() {
 
     private fun processVoiceInput(matches: List<String>) {
         val input = matches.firstOrNull()?.lowercase() ?: return
+        Log.i(TAG, "processVoiceInput: Received input: '$input'")
+        Log.d(TAG, "processVoiceInput: isAwake=$isAwake, wake_word=$WAKE_WORD")
         
         // Broadcast user input to transcript
         broadcastTranscript(matches.firstOrNull() ?: input, true)
@@ -329,38 +358,50 @@ class VoiceAssistantService : Service() {
         if (!isAwake) {
             // Check for wake word
             if (input.contains(WAKE_WORD)) {
+                Log.i(TAG, "processVoiceInput: Wake word detected!")
                 isAwake = true
                 updateNotification("Awake - Listening for command...")
                 reply("Yes?")
+            } else {
+                Log.d(TAG, "processVoiceInput: No wake word in input, continuing to listen")
             }
         } else {
             // Process command
+            Log.i(TAG, "processVoiceInput: Processing command (already awake)")
             updateNotification("Processing command...")
             
             // Extract command (remove wake word if present)
             val command = input.replace(WAKE_WORD, "").trim()
+            Log.d(TAG, "processVoiceInput: Extracted command: '$command'")
             
             if (command.isNotEmpty()) {
+                Log.i(TAG, "processVoiceInput: Sending command to processor: '$command'")
                 commandProcessor.processCommand(command) { success, responseMessage ->
+                    Log.i(TAG, "processVoiceInput: Command result - success=$success, response='$responseMessage'")
                     // Use the reply function to provide verbal and text feedback
                     reply(responseMessage)
                     
                     if (success) {
+                        Log.i(TAG, "processVoiceInput: Command executed successfully")
                         updateNotification("Command executed - Sleeping...")
                     } else {
+                        Log.w(TAG, "processVoiceInput: Command execution failed")
                         updateNotification("Command failed - Sleeping...")
                     }
                     
                     // Return to sleep mode after a delay to allow TTS to complete
                     // Use a minimum of 2 seconds, plus extra time if message is long
                     val delayMs = 2000L + (responseMessage.length * 50L).coerceAtMost(3000L)
+                    Log.d(TAG, "processVoiceInput: Returning to sleep in ${delayMs}ms")
                     handler.postDelayed({
                         isAwake = false
+                        Log.d(TAG, "processVoiceInput: Now sleeping, listening for wake word")
                         updateNotification("Listening for wake word...")
                     }, delayMs)
                 }
             } else {
                 // Only wake word was detected, wait for actual command
+                Log.d(TAG, "processVoiceInput: Empty command after wake word, waiting for command")
                 reply("Listening for your command...")
             }
         }
@@ -370,6 +411,7 @@ class VoiceAssistantService : Service() {
      * Broadcast transcript update to MainActivity
      */
     private fun broadcastTranscript(text: String, isUser: Boolean) {
+        Log.d(TAG, "broadcastTranscript: ${if (isUser) "USER" else "ASSISTANT"}: $text")
         val intent = Intent(ACTION_TRANSCRIPT_UPDATE).apply {
             putExtra(EXTRA_TRANSCRIPT_TEXT, text)
             putExtra(EXTRA_IS_USER, isUser)
@@ -381,11 +423,13 @@ class VoiceAssistantService : Service() {
      * Broadcast status update to MainActivity
      */
     private fun broadcastStatusUpdate() {
+        Log.d(TAG, "broadcastStatusUpdate: Sending status update")
         val intent = Intent(ACTION_STATUS_UPDATE)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
     override fun onDestroy() {
+        Log.i(TAG, "onDestroy: Stopping Voice Assistant Service")
         super.onDestroy()
         isServiceRunning = false
         isListening = false
