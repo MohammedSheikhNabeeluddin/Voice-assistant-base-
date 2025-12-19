@@ -24,130 +24,165 @@ import java.util.Calendar
  */
 class CommandProcessor(private val context: Context) {
 
-    fun processCommand(command: String, callback: (Boolean) -> Unit) {
+    private val TAG = "CommandProcessor"
+    private val ACCESSIBILITY_NOT_ENABLED_MSG = "Accessibility service not enabled. Please enable it in settings"
+
+    fun processCommand(command: String, callback: (Boolean, String) -> Unit) {
+        android.util.Log.d(TAG, "Processing command: $command")
         try {
             when {
-                // App management
-                command.contains("open") && command.contains("app") -> {
-                    val appName = extractAppName(command)
-                    openApp(appName)
-                    callback(true)
+                // System settings (check before general "open" to avoid conflicts)
+                command.contains("open settings") -> {
+                    openSettings()
+                    callback(true, "Opening settings")
                 }
-                command.contains("close") && command.contains("app") -> {
+                command.contains("enable accessibility") || command.contains("open accessibility") -> {
+                    openAccessibilitySettings()
+                    callback(true, "Opening accessibility settings")
+                }
+                
+                // App management - "open" command now works without requiring "app" keyword
+                command.contains("open") -> {
+                    val appName = extractAppName(command)
+                    val response = openApp(appName)
+                    callback(response != null, response ?: "Failed to open app")
+                }
+                command.contains("close app") || command.contains("close current") -> {
                     closeCurrentApp()
-                    callback(true)
+                    callback(true, "Closing current app")
                 }
-                command.contains("switch to") -> {
+                command.contains("switch to") || command.contains("switch") -> {
                     val appName = extractAppName(command)
-                    openApp(appName)
-                    callback(true)
+                    val response = openApp(appName)
+                    callback(response != null, response ?: "Failed to switch to app")
                 }
                 command.contains("download") || command.contains("install") -> {
                     val appName = extractAppName(command)
                     openPlayStore(appName)
-                    callback(true)
+                    callback(true, "Opening Play Store for $appName")
                 }
                 command.contains("clear all apps") || command.contains("close all apps") -> {
                     clearAllBackgroundApps()
-                    callback(true)
+                    callback(true, "Clearing all background apps")
                 }
                 command.contains("clear background") -> {
                     val appName = extractAppName(command)
                     clearSpecificApp(appName)
-                    callback(true)
+                    callback(true, "Clearing $appName from background")
                 }
 
                 // Scrolling and navigation
                 command.contains("scroll up") -> {
-                    VoiceAccessibilityService.instance?.performScrollUp()
-                    callback(true)
+                    if (VoiceAccessibilityService.instance != null) {
+                        VoiceAccessibilityService.instance?.performScrollUp()
+                        callback(true, "Scrolling up")
+                    } else {
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
+                    }
                 }
                 command.contains("scroll down") -> {
-                    VoiceAccessibilityService.instance?.performScrollDown()
-                    callback(true)
+                    if (VoiceAccessibilityService.instance != null) {
+                        VoiceAccessibilityService.instance?.performScrollDown()
+                        callback(true, "Scrolling down")
+                    } else {
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
+                    }
                 }
                 command.contains("go back") || command.contains("back") -> {
-                    VoiceAccessibilityService.instance?.performBack()
-                    callback(true)
+                    if (VoiceAccessibilityService.instance != null) {
+                        VoiceAccessibilityService.instance?.performBack()
+                        callback(true, "Going back")
+                    } else {
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
+                    }
                 }
                 command.contains("go home") || command.contains("home") -> {
-                    VoiceAccessibilityService.instance?.performHome()
-                    callback(true)
+                    if (VoiceAccessibilityService.instance != null) {
+                        VoiceAccessibilityService.instance?.performHome()
+                        callback(true, "Going home")
+                    } else {
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
+                    }
                 }
 
                 // Text operations
                 command.contains("copy") -> {
-                    VoiceAccessibilityService.instance?.performCopy()
-                    callback(true)
+                    if (VoiceAccessibilityService.instance != null) {
+                        VoiceAccessibilityService.instance?.performCopy()
+                        callback(true, "Copying text")
+                    } else {
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
+                    }
                 }
                 command.contains("paste") -> {
-                    VoiceAccessibilityService.instance?.performPaste()
-                    callback(true)
+                    if (VoiceAccessibilityService.instance != null) {
+                        VoiceAccessibilityService.instance?.performPaste()
+                        callback(true, "Pasting text")
+                    } else {
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
+                    }
                 }
                 command.contains("type") -> {
                     val text = extractText(command, "type")
-                    VoiceAccessibilityService.instance?.performType(text)
-                    callback(true)
+                    if (VoiceAccessibilityService.instance != null) {
+                        VoiceAccessibilityService.instance?.performType(text)
+                        callback(true, "Typing: $text")
+                    } else {
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
+                    }
                 }
 
                 // Communication
                 command.contains("call") -> {
                     val contact = extractContactName(command)
-                    makeCall(contact)
-                    callback(true)
+                    val response = makeCall(contact)
+                    callback(response != null, response ?: "Failed to make call")
                 }
                 command.contains("send message") || command.contains("text") -> {
                     val parts = extractMessageParts(command)
-                    sendMessage(parts.first, parts.second)
-                    callback(true)
+                    val response = sendMessage(parts.first, parts.second)
+                    callback(response != null, response ?: "Failed to send message")
                 }
 
                 // Alarms and timers
                 command.contains("set alarm") -> {
                     val time = extractTime(command)
                     setAlarm(time)
-                    callback(true)
+                    callback(true, "Setting alarm for ${time.first}:${String.format("%02d", time.second)}")
                 }
                 command.contains("set timer") -> {
                     val duration = extractDuration(command)
                     setTimer(duration)
-                    callback(true)
+                    val minutes = duration / 60
+                    callback(true, "Setting timer for $minutes minute${if (minutes != 1) "s" else ""}")
                 }
                 command.contains("start stopwatch") -> {
                     startStopwatch()
-                    callback(true)
+                    callback(true, "Starting stopwatch")
                 }
                 command.contains("start countdown") -> {
                     val duration = extractDuration(command)
                     startCountdown(duration)
-                    callback(true)
-                }
-
-                // System settings
-                command.contains("open settings") -> {
-                    openSettings()
-                    callback(true)
-                }
-                command.contains("enable accessibility") -> {
-                    openAccessibilitySettings()
-                    callback(true)
+                    val minutes = duration / 60
+                    callback(true, "Starting countdown for $minutes minute${if (minutes != 1) "s" else ""}")
                 }
 
                 else -> {
-                    callback(false)
+                    callback(false, "I don't understand that command. Please try again")
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            callback(false)
+            callback(false, "Error executing command: ${e.message}")
         }
     }
 
     private fun extractAppName(command: String): String {
-        val keywords = listOf("open", "app", "close", "switch to", "download", "install", "clear", "background")
+        val keywords = listOf("open", "app", "close", "current", "switch to", "switch", "download", "install", "clear", "background")
         var appName = command
         keywords.forEach { keyword ->
-            appName = appName.replace(keyword, "").trim()
+            // Use regex with word boundaries to avoid partial replacements
+            appName = appName.replace("\\b$keyword\\b".toRegex(RegexOption.IGNORE_CASE), "").trim()
         }
         return appName.trim()
     }
@@ -201,16 +236,28 @@ class CommandProcessor(private val context: Context) {
         }
     }
 
-    private fun openApp(appName: String) {
+    private fun openApp(appName: String): String? {
         try {
+            android.util.Log.d(TAG, "Attempting to open app: $appName")
+            val packageName = getPackageNameForApp(appName)
+            android.util.Log.d(TAG, "Resolved package name: $packageName")
+            
             val packageManager = context.packageManager
-            val intent = packageManager.getLaunchIntentForPackage(getPackageNameForApp(appName))
-            intent?.let {
-                it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(it)
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            
+            return if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                android.util.Log.d(TAG, "Successfully started app: $appName")
+                "Opening $appName"
+            } else {
+                android.util.Log.w(TAG, "No launch intent found for package: $packageName")
+                "Could not find $appName. Please make sure it's installed"
             }
         } catch (e: Exception) {
+            android.util.Log.e(TAG, "Error opening app: $appName", e)
             e.printStackTrace()
+            return "Error opening $appName: ${e.message}"
         }
     }
 
@@ -226,8 +273,11 @@ class CommandProcessor(private val context: Context) {
     }
 
     private fun closeCurrentApp() {
-        VoiceAccessibilityService.instance?.performBack()
-        VoiceAccessibilityService.instance?.performHome()
+        // Check if accessibility service is available before using it
+        if (VoiceAccessibilityService.instance != null) {
+            VoiceAccessibilityService.instance?.performBack()
+            VoiceAccessibilityService.instance?.performHome()
+        }
     }
 
     private fun openPlayStore(appName: String) {
@@ -262,24 +312,37 @@ class CommandProcessor(private val context: Context) {
         activityManager.killBackgroundProcesses(packageName)
     }
 
-    private fun makeCall(contact: String) {
+    private fun makeCall(contact: String): String? {
         try {
             val intent = Intent(Intent.ACTION_CALL).apply {
                 data = Uri.parse("tel:$contact")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
+            return "Calling $contact"
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+            return "Phone permission not granted. Please grant call permission"
         } catch (e: Exception) {
             e.printStackTrace()
+            return "Error making call: ${e.message}"
         }
     }
 
-    private fun sendMessage(recipient: String, message: String) {
+    private fun sendMessage(recipient: String, message: String): String? {
         try {
+            if (recipient.isEmpty() || message.isEmpty()) {
+                return "Please specify both recipient and message"
+            }
             val smsManager = SmsManager.getDefault()
             smsManager.sendTextMessage(recipient, null, message, null, null)
+            return "Sending message to $recipient"
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+            return "SMS permission not granted. Please grant SMS permission"
         } catch (e: Exception) {
             e.printStackTrace()
+            return "Error sending message: ${e.message}"
         }
     }
 
