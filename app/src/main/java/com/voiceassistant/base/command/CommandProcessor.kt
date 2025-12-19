@@ -25,6 +25,7 @@ import java.util.Calendar
 class CommandProcessor(private val context: Context) {
 
     private val TAG = "CommandProcessor"
+    private val ACCESSIBILITY_NOT_ENABLED_MSG = "Accessibility service not enabled. Please enable it in settings"
 
     fun processCommand(command: String, callback: (Boolean, String) -> Unit) {
         android.util.Log.d(TAG, "Processing command: $command")
@@ -76,7 +77,7 @@ class CommandProcessor(private val context: Context) {
                         VoiceAccessibilityService.instance?.performScrollUp()
                         callback(true, "Scrolling up")
                     } else {
-                        callback(false, "Accessibility service not enabled. Please enable it in settings")
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
                     }
                 }
                 command.contains("scroll down") -> {
@@ -84,7 +85,7 @@ class CommandProcessor(private val context: Context) {
                         VoiceAccessibilityService.instance?.performScrollDown()
                         callback(true, "Scrolling down")
                     } else {
-                        callback(false, "Accessibility service not enabled. Please enable it in settings")
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
                     }
                 }
                 command.contains("go back") || command.contains("back") -> {
@@ -92,7 +93,7 @@ class CommandProcessor(private val context: Context) {
                         VoiceAccessibilityService.instance?.performBack()
                         callback(true, "Going back")
                     } else {
-                        callback(false, "Accessibility service not enabled")
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
                     }
                 }
                 command.contains("go home") || command.contains("home") -> {
@@ -100,7 +101,7 @@ class CommandProcessor(private val context: Context) {
                         VoiceAccessibilityService.instance?.performHome()
                         callback(true, "Going home")
                     } else {
-                        callback(false, "Accessibility service not enabled")
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
                     }
                 }
 
@@ -110,7 +111,7 @@ class CommandProcessor(private val context: Context) {
                         VoiceAccessibilityService.instance?.performCopy()
                         callback(true, "Copying text")
                     } else {
-                        callback(false, "Accessibility service not enabled")
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
                     }
                 }
                 command.contains("paste") -> {
@@ -118,7 +119,7 @@ class CommandProcessor(private val context: Context) {
                         VoiceAccessibilityService.instance?.performPaste()
                         callback(true, "Pasting text")
                     } else {
-                        callback(false, "Accessibility service not enabled")
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
                     }
                 }
                 command.contains("type") -> {
@@ -127,7 +128,7 @@ class CommandProcessor(private val context: Context) {
                         VoiceAccessibilityService.instance?.performType(text)
                         callback(true, "Typing: $text")
                     } else {
-                        callback(false, "Accessibility service not enabled")
+                        callback(false, ACCESSIBILITY_NOT_ENABLED_MSG)
                     }
                 }
 
@@ -180,7 +181,8 @@ class CommandProcessor(private val context: Context) {
         val keywords = listOf("open", "app", "close", "current", "switch to", "switch", "download", "install", "clear", "background")
         var appName = command
         keywords.forEach { keyword ->
-            appName = appName.replace(keyword, "", ignoreCase = true).trim()
+            // Use regex with word boundaries to avoid partial replacements
+            appName = appName.replace("\\b$keyword\\b".toRegex(RegexOption.IGNORE_CASE), "").trim()
         }
         return appName.trim()
     }
@@ -271,8 +273,11 @@ class CommandProcessor(private val context: Context) {
     }
 
     private fun closeCurrentApp() {
-        VoiceAccessibilityService.instance?.performBack()
-        VoiceAccessibilityService.instance?.performHome()
+        // Check if accessibility service is available before using it
+        if (VoiceAccessibilityService.instance != null) {
+            VoiceAccessibilityService.instance?.performBack()
+            VoiceAccessibilityService.instance?.performHome()
+        }
     }
 
     private fun openPlayStore(appName: String) {

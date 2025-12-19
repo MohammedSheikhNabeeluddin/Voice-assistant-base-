@@ -351,11 +351,13 @@ class VoiceAssistantService : Service() {
                         updateNotification("Command failed - Sleeping...")
                     }
                     
-                    // Return to sleep mode after speaking is done or a timeout
+                    // Return to sleep mode after a delay to allow TTS to complete
+                    // Use a minimum of 2 seconds, plus extra time if message is long
+                    val delayMs = 2000L + (responseMessage.length * 50L).coerceAtMost(3000L)
                     handler.postDelayed({
                         isAwake = false
                         updateNotification("Listening for wake word...")
-                    }, if (isSpeaking) 3000 else 2000)
+                    }, delayMs)
                 }
             } else {
                 // Only wake word was detected, wait for actual command
