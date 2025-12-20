@@ -357,53 +357,74 @@ class VoiceAssistantService : Service() {
 
         if (!isAwake) {
             // Check for wake word
-            if (input.contains(WAKE_WORD)) {
+            val wakeWordIndex = input.indexOf(WAKE_WORD)
+            if (wakeWordIndex >= 0) {
                 Log.i(TAG, "processVoiceInput: Wake word detected!")
                 isAwake = true
                 updateNotification("Awake - Listening for command...")
-                reply("Yes?")
+                
+                // Extract command after the wake word (e.g., "Hey Assistant open Chrome" -> "open Chrome")
+                val command = input.substring(wakeWordIndex + WAKE_WORD.length).trim()
+                
+                // Check if command was spoken together with wake word
+                if (command.isNotEmpty()) {
+                    Log.i(TAG, "processVoiceInput: Command detected with wake word: '$command'")
+                    // Process the command immediately
+                    executeCommand(command)
+                } else {
+                    // Only wake word was detected, wait for actual command
+                    Log.d(TAG, "processVoiceInput: Wake word only, waiting for command")
+                    reply("Yes?")
+                }
             } else {
                 Log.d(TAG, "processVoiceInput: No wake word in input, continuing to listen")
             }
         } else {
-            // Process command
+            // Already awake, process command (the input IS the command)
             Log.i(TAG, "processVoiceInput: Processing command (already awake)")
-            updateNotification("Processing command...")
             
-            // Extract command (remove wake word if present)
-            val command = input.replace(WAKE_WORD, "").trim()
-            Log.d(TAG, "processVoiceInput: Extracted command: '$command'")
+            // When already awake, the input is the command itself (no wake word needed)
+            val command = input.trim()
             
             if (command.isNotEmpty()) {
-                Log.i(TAG, "processVoiceInput: Sending command to processor: '$command'")
-                commandProcessor.processCommand(command) { success, responseMessage ->
-                    Log.i(TAG, "processVoiceInput: Command result - success=$success, response='$responseMessage'")
-                    // Use the reply function to provide verbal and text feedback
-                    reply(responseMessage)
-                    
-                    if (success) {
-                        Log.i(TAG, "processVoiceInput: Command executed successfully")
-                        updateNotification("Command executed - Sleeping...")
-                    } else {
-                        Log.w(TAG, "processVoiceInput: Command execution failed")
-                        updateNotification("Command failed - Sleeping...")
-                    }
-                    
-                    // Return to sleep mode after a delay to allow TTS to complete
-                    // Use a minimum of 2 seconds, plus extra time if message is long
-                    val delayMs = 2000L + (responseMessage.length * 50L).coerceAtMost(3000L)
-                    Log.d(TAG, "processVoiceInput: Returning to sleep in ${delayMs}ms")
-                    handler.postDelayed({
-                        isAwake = false
-                        Log.d(TAG, "processVoiceInput: Now sleeping, listening for wake word")
-                        updateNotification("Listening for wake word...")
-                    }, delayMs)
-                }
+                executeCommand(command)
             } else {
-                // Only wake word was detected, wait for actual command
-                Log.d(TAG, "processVoiceInput: Empty command after wake word, waiting for command")
+                // Empty command, continue listening
+                Log.d(TAG, "processVoiceInput: Empty command, waiting for command")
                 reply("Listening for your command...")
             }
+        }
+    }
+    
+    /**
+     * Execute a voice command through the CommandProcessor
+     */
+    private fun executeCommand(command: String) {
+        Log.i(TAG, "executeCommand: Sending command to processor: '$command'")
+        updateNotification("Processing command...")
+        
+        commandProcessor.processCommand(command) { success, responseMessage ->
+            Log.i(TAG, "executeCommand: Command result - success=$success, response='$responseMessage'")
+            // Use the reply function to provide verbal and text feedback
+            reply(responseMessage)
+            
+            if (success) {
+                Log.i(TAG, "executeCommand: Command executed successfully")
+                updateNotification("Command executed - Sleeping...")
+            } else {
+                Log.w(TAG, "executeCommand: Command execution failed")
+                updateNotification("Command failed - Sleeping...")
+            }
+            
+            // Return to sleep mode after a delay to allow TTS to complete
+            // Use a minimum of 2 seconds, plus extra time if message is long
+            val delayMs = 2000L + (responseMessage.length * 50L).coerceAtMost(3000L)
+            Log.d(TAG, "executeCommand: Returning to sleep in ${delayMs}ms")
+            handler.postDelayed({
+                isAwake = false
+                Log.d(TAG, "executeCommand: Now sleeping, listening for wake word")
+                updateNotification("Listening for wake word...")
+            }, delayMs)
         }
     }
     
