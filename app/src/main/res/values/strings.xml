@@ -1,27 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Voice Assistant Base</string>
-    <string name="wake_word_info">Say \"Hey Assistant\" to wake up the voice assistant</string>
-    <string name="features_info">Features: Open apps, scroll, copy/paste, send messages, make calls, set alarms/timers, clear background apps, and more!</string>
-    <string name="accessibility_service_description">Voice Assistant requires accessibility service to perform actions like scrolling, clicking, and text input within apps.</string>
-    
-    <!-- Permission Dashboard -->
-    <string name="permission_dashboard_title">Permission Status</string>
-    <string name="mic_permission">Microphone</string>
-    <string name="overlay_permission">Overlay (Draw over apps)</string>
-    <string name="accessibility_permission">Accessibility Service</string>
-    <string name="notification_permission">Notifications</string>
-    <string name="grant_permission">Grant</string>
-    <string name="enable_service">Enable</string>
-    
-    <!-- Buttons -->
-    <string name="start_voice_assistant">Start Voice Assistant</string>
-    <string name="stop_voice_assistant">Stop Voice Assistant</string>
-    
-    <!-- Live Transcript -->
-    <string name="live_transcript_title">Live Transcript</string>
-    <string name="transcript_placeholder">Transcript will appear here when assistant is active...</string>
-    <string name="clear_transcript">Clear</string>
-    <string name="user_label">You: </string>
-    <string name="assistant_label">Assistant: </string>
+    <string name="app_name">Voice Assistant</string>
+    <string name="accessibility_service_description">This service allows Voice Assistant to control your device, scroll through apps, click buttons, and type text using voice commands.</string>
 </resources>
