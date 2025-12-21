@@ -1,91 +1,108 @@
-package com.voiceassistant.base.util
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
 
-import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
+    <TextView
+        android:id="@+id/titleText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Voice Assistant"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="16dp"/>
 
-/**
- * Helper class for app-related operations
- */
-object AppHelper {
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Status: Checking..."
+        android:textSize="14sp"
+        android:padding="12dp"
+        android:background="#E0E0E0"
+        android:layout_marginBottom="16dp"/>
 
-    /**
-     * Get list of all installed apps
-     */
-    fun getInstalledApps(context: Context): List<ApplicationInfo> {
-        val packageManager = context.packageManager
-        return packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
-            .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 }
-    }
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
 
-    /**
-     * Get app name from package name
-     */
-    fun getAppName(context: Context, packageName: String): String? {
-        return try {
-            val packageManager = context.packageManager
-            val applicationInfo = packageManager.getApplicationInfo(packageName, 0)
-            packageManager.getApplicationLabel(applicationInfo).toString()
-        } catch (e: Exception) {
-            null
-        }
-    }
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Start"
+            android:layout_marginEnd="4dp"/>
 
-    /**
-     * Check if app is installed
-     */
-    fun isAppInstalled(context: Context, packageName: String): Boolean {
-        return try {
-            context.packageManager.getPackageInfo(packageName, 0)
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
+        <Button
+            android:id="@+id/stopButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Stop"
+            android:layout_marginStart="4dp"/>
+    </LinearLayout>
 
-    /**
-     * Search for app package by name
-     */
-    fun findAppPackage(context: Context, appName: String): String? {
-        val installedApps = getInstalledApps(context)
-        val searchTerm = appName.lowercase()
-        
-        return installedApps.firstOrNull { app ->
-            val name = getAppName(context, app.packageName)?.lowercase() ?: ""
-            name.contains(searchTerm) || app.packageName.lowercase().contains(searchTerm)
-        }?.packageName
-    }
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
 
-    /**
-     * Common app package mappings
-     */
-    fun getCommonAppPackage(appName: String): String? {
-        return when (appName.lowercase().trim()) {
-            "chrome", "browser" -> "com.android.chrome"
-            "gmail", "mail", "email" -> "com.google.android.gm"
-            "maps", "google maps" -> "com.google.android.apps.maps"
-            "youtube" -> "com.google.android.youtube"
-            "whatsapp" -> "com.whatsapp"
-            "instagram", "insta" -> "com.instagram.android"
-            "facebook" -> "com.facebook.katana"
-            "twitter" -> "com.twitter.android"
-            "messenger" -> "com.facebook.orca"
-            "telegram" -> "org.telegram.messenger"
-            "snapchat", "snap" -> "com.snapchat.android"
-            "spotify" -> "com.spotify.music"
-            "netflix" -> "com.netflix.mediaclient"
-            "amazon" -> "com.amazon.mShop.android.shopping"
-            "play store", "store" -> "com.android.vending"
-            "settings" -> "com.android.settings"
-            "camera" -> "com.android.camera2"
-            "photos", "gallery" -> "com.google.android.apps.photos"
-            "calendar" -> "com.google.android.calendar"
-            "clock" -> "com.google.android.deskclock"
-            "calculator" -> "com.google.android.calculator"
-            "contacts" -> "com.google.android.contacts"
-            "messages", "sms" -> "com.google.android.apps.messaging"
-            "phone", "dialer" -> "com.google.android.dialer"
-            else -> null
-        }
-    }
-}
+        <Button
+            android:id="@+id/permissionButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Permissions"
+            android:textSize="12sp"
+            android:layout_marginEnd="4dp"/>
+
+        <Button
+            android:id="@+id/accessibilityButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Accessibility"
+            android:textSize="12sp"
+            android:layout_marginStart="4dp"/>
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Conversation:"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <ScrollView
+        android:id="@+id/transcriptScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#F5F5F5"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/transcriptText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"/>
+    </ScrollView>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Say 'Hey Assistant' to activate"
+        android:textSize="12sp"
+        android:gravity="center"
+        android:layout_marginTop="8dp"
+        android:textColor="#666666"/>
+
+</LinearLayout>
