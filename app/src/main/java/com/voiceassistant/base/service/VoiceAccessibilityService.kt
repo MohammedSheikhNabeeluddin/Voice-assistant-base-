@@ -4,49 +4,32 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Context
 import android.graphics.Path
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * Accessibility service for performing actions within apps
- * Enables scrolling, clicking, typing, copy/paste operations
- * 
- * All gesture methods return a Boolean indicating success/failure for proper error handling.
+ * Accessibility service for performing in-app actions
  */
 class VoiceAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "VoiceAccessibilityService"
-        private const val SCROLL_GESTURE_DURATION_MS = 300L
         var instance: VoiceAccessibilityService? = null
-    }
-    
-    /**
-     * Safely recycle an AccessibilityNodeInfo to avoid memory leaks
-     */
-    private fun safeRecycle(nodeInfo: AccessibilityNodeInfo?) {
-        try {
-            nodeInfo?.recycle()
-        } catch (e: Exception) {
-            Log.w(TAG, "safeRecycle: Error recycling node", e)
-        }
+            private set
     }
 
-    override fun onCreate() {
-        super.onCreate()
+    override fun onServiceConnected() {
+        super.onServiceConnected()
         instance = this
-        Log.i(TAG, "Accessibility service created and instance set")
+        Log.i(TAG, "Accessibility service connected")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Handle accessibility events if needed
-        event?.let {
-            Log.v(TAG, "Accessibility event received: type=${it.eventType}")
-        }
+        // We don't need to process events, just perform actions
     }
 
     override fun onInterrupt() {
@@ -56,479 +39,388 @@ class VoiceAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         instance = null
-        Log.i(TAG, "Accessibility service destroyed, instance cleared")
+        Log.i(TAG, "Accessibility service destroyed")
     }
 
-    /**
-     * Perform scroll up action
-     * Uses accessibility node action first, falls back to gesture-based scrolling
-     * @return true if action was performed successfully, false otherwise
-     */
-    fun performScrollUp(): Boolean {
-        Log.d(TAG, "performScrollUp: Attempting scroll up action")
-        
-        // Try accessibility node action first
-        val nodeInfo = rootInActiveWindow
-        if (nodeInfo != null) {
-            try {
-                val scrollableNode = findScrollableNode(nodeInfo)
-                if (scrollableNode != null) {
-                    val result = scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
-                    Log.d(TAG, "performScrollUp: Node scroll action result=$result")
-                    // Recycle nodes carefully to avoid double-recycling
-                    if (scrollableNode !== nodeInfo) {
-                        safeRecycle(scrollableNode)
-                        safeRecycle(nodeInfo)
-                    } else {
-                        // scrollableNode is the same as nodeInfo, only recycle once
-                        safeRecycle(nodeInfo)
-                    }
-                    if (result) return true
-                } else {
-                    safeRecycle(nodeInfo)
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "performScrollUp: Node action failed, falling back to gesture", e)
-                safeRecycle(nodeInfo)
-            }
-        }
-        
-        // Fallback: Use gesture-based scrolling (swipe down to scroll up)
-        Log.d(TAG, "performScrollUp: Using gesture-based scroll")
-        return performScrollGesture(isScrollUp = true)
-    }
+    // ==================== NAVIGATION ACTIONS ====================
 
-    /**
-     * Perform scroll down action
-     * Uses accessibility node action first, falls back to gesture-based scrolling
-     * @return true if action was performed successfully, false otherwise
-     */
-    fun performScrollDown(): Boolean {
-        Log.d(TAG, "performScrollDown: Attempting scroll down action")
-        
-        // Try accessibility node action first
-        val nodeInfo = rootInActiveWindow
-        if (nodeInfo != null) {
-            try {
-                val scrollableNode = findScrollableNode(nodeInfo)
-                if (scrollableNode != null) {
-                    val result = scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-                    Log.d(TAG, "performScrollDown: Node scroll action result=$result")
-                    // Recycle nodes carefully to avoid double-recycling
-                    if (scrollableNode !== nodeInfo) {
-                        safeRecycle(scrollableNode)
-                        safeRecycle(nodeInfo)
-                    } else {
-                        // scrollableNode is the same as nodeInfo, only recycle once
-                        safeRecycle(nodeInfo)
-                    }
-                    if (result) return true
-                } else {
-                    safeRecycle(nodeInfo)
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "performScrollDown: Node action failed, falling back to gesture", e)
-                safeRecycle(nodeInfo)
-            }
-        }
-        
-        // Fallback: Use gesture-based scrolling (swipe up to scroll down)
-        Log.d(TAG, "performScrollDown: Using gesture-based scroll")
-        return performScrollGesture(isScrollUp = false)
-    }
-
-    /**
-     * Perform gesture-based scrolling using dispatchGesture
-     * @param isScrollUp true to scroll up (swipe down), false to scroll down (swipe up)
-     * @return true if gesture was dispatched successfully
-     */
-    private fun performScrollGesture(isScrollUp: Boolean): Boolean {
-        return try {
-            // Get screen dimensions using service resources for accurate measurements
-            val displayMetrics = resources.displayMetrics
-            val screenWidth = displayMetrics.widthPixels
-            val screenHeight = displayMetrics.heightPixels
-            
-            // Calculate scroll gesture coordinates (center of screen)
-            val centerX = screenWidth / 2f
-            val startY: Float
-            val endY: Float
-            
-            if (isScrollUp) {
-                // Scroll up = swipe down (finger moves from top to bottom)
-                startY = screenHeight * 0.3f
-                endY = screenHeight * 0.7f
-            } else {
-                // Scroll down = swipe up (finger moves from bottom to top)
-                startY = screenHeight * 0.7f
-                endY = screenHeight * 0.3f
-            }
-            
-            val path = Path()
-            path.moveTo(centerX, startY)
-            path.lineTo(centerX, endY)
-            
-            val gestureBuilder = GestureDescription.Builder()
-            val strokeDescription = GestureDescription.StrokeDescription(path, 0, SCROLL_GESTURE_DURATION_MS)
-            gestureBuilder.addStroke(strokeDescription)
-            
-            val gesture = gestureBuilder.build()
-            val result = dispatchGesture(gesture, object : GestureResultCallback() {
-                override fun onCompleted(gestureDescription: GestureDescription?) {
-                    Log.d(TAG, "performScrollGesture: Gesture completed successfully")
-                }
-                
-                override fun onCancelled(gestureDescription: GestureDescription?) {
-                    Log.w(TAG, "performScrollGesture: Gesture was cancelled")
-                }
-            }, null)
-            
-            Log.d(TAG, "performScrollGesture: dispatchGesture result=$result, direction=${if (isScrollUp) "up" else "down"}")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "performScrollGesture: Error performing scroll gesture", e)
-            false
-        }
-    }
-
-    /**
-     * Find a scrollable node in the accessibility tree
-     * Note: Caller is responsible for recycling the returned node
-     * @return the first scrollable node found, or null if none
-     */
-    private fun findScrollableNode(nodeInfo: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        if (nodeInfo.isScrollable) {
-            return nodeInfo
-        }
-        
-        for (i in 0 until nodeInfo.childCount) {
-            val child = nodeInfo.getChild(i) ?: continue
-            val scrollable = findScrollableNode(child)
-            if (scrollable != null) {
-                // If the scrollable node is the child itself, don't recycle it
-                // If the scrollable node is deeper in the tree, recycle the intermediate child
-                if (scrollable !== child) {
-                    child.recycle()
-                }
-                return scrollable
-            }
-            child.recycle()
-        }
-        
-        return null
-    }
-
-    /**
-     * Perform back navigation
-     * @return true if action was performed successfully, false otherwise
-     */
     fun performBack(): Boolean {
-        Log.d(TAG, "performBack: Attempting back navigation")
-        
-        return try {
-            val result = performGlobalAction(GLOBAL_ACTION_BACK)
-            Log.d(TAG, "performBack: Action result=$result")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "performBack: Error performing back action", e)
-            false
-        }
+        Log.d(TAG, "Performing BACK action")
+        return performGlobalAction(GLOBAL_ACTION_BACK)
     }
 
-    /**
-     * Perform home navigation
-     * @return true if action was performed successfully, false otherwise
-     */
     fun performHome(): Boolean {
-        Log.d(TAG, "performHome: Attempting home navigation")
-        
-        return try {
-            val result = performGlobalAction(GLOBAL_ACTION_HOME)
-            Log.d(TAG, "performHome: Action result=$result")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "performHome: Error performing home action", e)
-            false
-        }
+        Log.d(TAG, "Performing HOME action")
+        return performGlobalAction(GLOBAL_ACTION_HOME)
     }
 
-    /**
-     * Perform recent apps navigation
-     * @return true if action was performed successfully, false otherwise
-     */
     fun performRecents(): Boolean {
-        Log.d(TAG, "performRecents: Attempting recents navigation")
-        
-        return try {
-            val result = performGlobalAction(GLOBAL_ACTION_RECENTS)
-            Log.d(TAG, "performRecents: Action result=$result")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "performRecents: Error performing recents action", e)
+        Log.d(TAG, "Performing RECENTS action")
+        return performGlobalAction(GLOBAL_ACTION_RECENTS)
+    }
+
+    fun openNotifications(): Boolean {
+        Log.d(TAG, "Opening notifications")
+        return performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+    }
+
+    fun openQuickSettings(): Boolean {
+        Log.d(TAG, "Opening quick settings")
+        return performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+    }
+
+    fun performScreenshot(): Boolean {
+        Log.d(TAG, "Taking screenshot")
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+        } else {
+            Log.w(TAG, "Screenshot requires Android P or higher")
             false
         }
     }
 
-    /**
-     * Copy selected text
-     * @return true if action was performed successfully, false otherwise
-     */
+    fun performLockScreen(): Boolean {
+        Log.d(TAG, "Locking screen")
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+        } else {
+            Log.w(TAG, "Lock screen requires Android P or higher")
+            false
+        }
+    }
+
+    // ==================== SCROLL ACTIONS ====================
+
+    fun performScrollDown(): Boolean {
+        Log.d(TAG, "Performing scroll DOWN")
+        
+        val rootNode = rootInActiveWindow
+        if (rootNode != null) {
+            val scrollableNode = findScrollableNode(rootNode)
+            if (scrollableNode != null) {
+                val result = scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                scrollableNode.recycle()
+                rootNode.recycle()
+                if (result) {
+                    Log.d(TAG, "Scrolled using node action")
+                    return true
+                }
+            }
+            rootNode.recycle()
+        }
+        
+        return performGestureScroll(false)
+    }
+
+    fun performScrollUp(): Boolean {
+        Log.d(TAG, "Performing scroll UP")
+        
+        val rootNode = rootInActiveWindow
+        if (rootNode != null) {
+            val scrollableNode = findScrollableNode(rootNode)
+            if (scrollableNode != null) {
+                val result = scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+                scrollableNode.recycle()
+                rootNode.recycle()
+                if (result) {
+                    Log.d(TAG, "Scrolled using node action")
+                    return true
+                }
+            }
+            rootNode.recycle()
+        }
+        
+        return performGestureScroll(true)
+    }
+
+    fun performScrollLeft(): Boolean {
+        Log.d(TAG, "Performing scroll LEFT")
+        return performGestureScrollHorizontal(true)
+    }
+
+    fun performScrollRight(): Boolean {
+        Log.d(TAG, "Performing scroll RIGHT")
+        return performGestureScrollHorizontal(false)
+    }
+
+    private fun findScrollableNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isScrollable) {
+            return AccessibilityNodeInfo.obtain(node)
+        }
+        
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val result = findScrollableNode(child)
+            child.recycle()
+            if (result != null) {
+                return result
+            }
+        }
+        
+        return null
+    }
+
+    private fun performGestureScroll(scrollUp: Boolean): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            Log.w(TAG, "Gesture scrolling requires Android N or higher")
+            return false
+        }
+
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
+        val centerX = screenWidth / 2f
+        val startY: Float
+        val endY: Float
+
+        if (scrollUp) {
+            startY = screenHeight * 0.3f
+            endY = screenHeight * 0.7f
+        } else {
+            startY = screenHeight * 0.7f
+            endY = screenHeight * 0.3f
+        }
+
+        val path = Path()
+        path.moveTo(centerX, startY)
+        path.lineTo(centerX, endY)
+
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 300))
+            .build()
+
+        return dispatchGesture(gesture, null, null)
+    }
+
+    private fun performGestureScrollHorizontal(scrollLeft: Boolean): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            return false
+        }
+
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
+        val centerY = screenHeight / 2f
+        val startX: Float
+        val endX: Float
+
+        if (scrollLeft) {
+            startX = screenWidth * 0.3f
+            endX = screenWidth * 0.7f
+        } else {
+            startX = screenWidth * 0.7f
+            endX = screenWidth * 0.3f
+        }
+
+        val path = Path()
+        path.moveTo(startX, centerY)
+        path.lineTo(endX, centerY)
+
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 300))
+            .build()
+
+        return dispatchGesture(gesture, null, null)
+    }
+
+    // ==================== TEXT ACTIONS ====================
+
     fun performCopy(): Boolean {
-        Log.d(TAG, "performCopy: Attempting copy action")
+        Log.d(TAG, "Performing COPY action")
         
-        val nodeInfo = rootInActiveWindow
-        if (nodeInfo == null) {
-            Log.w(TAG, "performCopy: rootInActiveWindow is null, cannot copy")
-            return false
-        }
+        val rootNode = rootInActiveWindow ?: return false
+        val focusedNode = findFocusedNode(rootNode) ?: findEditableNode(rootNode)
         
-        return try {
-            val selectedNode = findFocusedNode(nodeInfo)
-            val result = if (selectedNode != null) {
-                val copyResult = selectedNode.performAction(AccessibilityNodeInfo.ACTION_COPY)
-                Log.d(TAG, "performCopy: Copy action result=$copyResult")
-                selectedNode.recycle()
-                copyResult
-            } else {
-                Log.w(TAG, "performCopy: No focused node found")
-                false
-            }
-            nodeInfo.recycle()
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "performCopy: Error performing copy", e)
-            safeRecycle(nodeInfo)
-            false
-        }
+        val result = focusedNode?.performAction(AccessibilityNodeInfo.ACTION_COPY) ?: false
+        
+        focusedNode?.recycle()
+        rootNode.recycle()
+        
+        return result
     }
 
-    /**
-     * Paste text
-     * @return true if action was performed successfully, false otherwise
-     */
     fun performPaste(): Boolean {
-        Log.d(TAG, "performPaste: Attempting paste action")
+        Log.d(TAG, "Performing PASTE action")
         
-        val nodeInfo = rootInActiveWindow
-        if (nodeInfo == null) {
-            Log.w(TAG, "performPaste: rootInActiveWindow is null, cannot paste")
-            return false
-        }
+        val rootNode = rootInActiveWindow ?: return false
+        val focusedNode = findFocusedNode(rootNode) ?: findEditableNode(rootNode)
         
-        return try {
-            val selectedNode = findFocusedNode(nodeInfo)
-            val result = if (selectedNode != null) {
-                val pasteResult = selectedNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-                Log.d(TAG, "performPaste: Paste action result=$pasteResult")
-                selectedNode.recycle()
-                pasteResult
-            } else {
-                Log.w(TAG, "performPaste: No focused node found")
-                false
-            }
-            nodeInfo.recycle()
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "performPaste: Error performing paste", e)
-            safeRecycle(nodeInfo)
-            false
-        }
+        val result = focusedNode?.performAction(AccessibilityNodeInfo.ACTION_PASTE) ?: false
+        
+        focusedNode?.recycle()
+        rootNode.recycle()
+        
+        return result
     }
 
-    /**
-     * Type text into focused field
-     * @return true if action was performed successfully, false otherwise
-     */
+    fun performSelectAll(): Boolean {
+        Log.d(TAG, "Performing SELECT ALL action")
+        
+        val rootNode = rootInActiveWindow ?: return false
+        val focusedNode = findFocusedNode(rootNode) ?: findEditableNode(rootNode)
+        
+        val result = if (focusedNode != null) {
+            val arguments = Bundle()
+            arguments.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
+            arguments.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, Int.MAX_VALUE)
+            focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, arguments)
+        } else {
+            false
+        }
+        
+        focusedNode?.recycle()
+        rootNode.recycle()
+        
+        return result
+    }
+
     fun performType(text: String): Boolean {
-        Log.d(TAG, "performType: Attempting to type '$text'")
+        Log.d(TAG, "Performing TYPE action: '$text'")
         
-        if (text.isEmpty()) {
-            Log.w(TAG, "performType: Text is empty, nothing to type")
+        val rootNode = rootInActiveWindow ?: run {
+            Log.w(TAG, "No root node available")
             return false
         }
         
-        val nodeInfo = rootInActiveWindow
-        if (nodeInfo == null) {
-            Log.w(TAG, "performType: rootInActiveWindow is null, cannot type")
-            return false
-        }
+        var targetNode = findFocusedNode(rootNode) ?: findEditableNode(rootNode)
         
-        return try {
-            val editableNode = findEditableNode(nodeInfo)
+        val result = if (targetNode != null) {
+            targetNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
             
-            val result = if (editableNode != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 val arguments = Bundle()
-                arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-                val typeResult = editableNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
-                Log.d(TAG, "performType: Type action result=$typeResult")
-                editableNode.recycle()
-                typeResult
+                arguments.putCharSequence(
+                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, 
+                    text
+                )
+                targetNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
             } else {
-                Log.w(TAG, "performType: No editable node found")
-                false
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("text", text))
+                targetNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
             }
-            
-            nodeInfo.recycle()
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "performType: Error performing type", e)
-            safeRecycle(nodeInfo)
+        } else {
+            Log.w(TAG, "No editable node found")
             false
         }
+        
+        targetNode?.recycle()
+        rootNode.recycle()
+        
+        return result
     }
 
-    /**
-     * Click at specific coordinates
-     * @return true if gesture was dispatched, false otherwise
-     */
-    fun performClick(x: Float, y: Float): Boolean {
-        Log.d(TAG, "performClick: Attempting click at ($x, $y)")
-        
-        return try {
-            val path = Path()
-            path.moveTo(x, y)
-            
-            val gestureBuilder = GestureDescription.Builder()
-            gestureBuilder.addStroke(GestureDescription.StrokeDescription(path, 0, 100))
-            
-            val gesture = gestureBuilder.build()
-            val result = dispatchGesture(gesture, null, null)
-            Log.d(TAG, "performClick: Gesture dispatched=$result")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "performClick: Error performing click", e)
-            false
+    private fun findFocusedNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isFocused && node.isEditable) {
+            return AccessibilityNodeInfo.obtain(node)
         }
-    }
-
-    /**
-     * Perform swipe gesture
-     * @return true if gesture was dispatched, false otherwise
-     */
-    fun performSwipe(startX: Float, startY: Float, endX: Float, endY: Float, duration: Long = 300): Boolean {
-        Log.d(TAG, "performSwipe: Attempting swipe from ($startX, $startY) to ($endX, $endY)")
         
-        return try {
-            val path = Path()
-            path.moveTo(startX, startY)
-            path.lineTo(endX, endY)
-            
-            val gestureBuilder = GestureDescription.Builder()
-            gestureBuilder.addStroke(GestureDescription.StrokeDescription(path, 0, duration))
-            
-            val gesture = gestureBuilder.build()
-            val result = dispatchGesture(gesture, null, null)
-            Log.d(TAG, "performSwipe: Gesture dispatched=$result")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "performSwipe: Error performing swipe", e)
-            false
-        }
-    }
-
-    /**
-     * Find focused node in tree
-     */
-    private fun findFocusedNode(nodeInfo: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        if (nodeInfo.isFocused) return nodeInfo
-        
-        for (i in 0 until nodeInfo.childCount) {
-            val child = nodeInfo.getChild(i) ?: continue
-            val focused = findFocusedNode(child)
-            if (focused != null) return focused
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val result = findFocusedNode(child)
             child.recycle()
+            if (result != null) {
+                return result
+            }
         }
         
         return null
     }
 
-    /**
-     * Find editable text node
-     */
-    private fun findEditableNode(nodeInfo: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        if (nodeInfo.isEditable) return nodeInfo
+    private fun findEditableNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isEditable) {
+            return AccessibilityNodeInfo.obtain(node)
+        }
         
-        for (i in 0 until nodeInfo.childCount) {
-            val child = nodeInfo.getChild(i) ?: continue
-            val editable = findEditableNode(child)
-            if (editable != null) return editable
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val result = findEditableNode(child)
             child.recycle()
+            if (result != null) {
+                return result
+            }
         }
         
         return null
     }
 
-    /**
-     * Click on node with specific text
-     * @return true if node was found and clicked, false otherwise
-     */
-    fun clickOnText(text: String): Boolean {
-        Log.d(TAG, "clickOnText: Attempting to click on text '$text'")
+    // ==================== CLICK ACTIONS ====================
+
+    fun performClickOnText(text: String): Boolean {
+        Log.d(TAG, "Performing CLICK on text: '$text'")
         
-        val nodeInfo = rootInActiveWindow
-        if (nodeInfo == null) {
-            Log.w(TAG, "clickOnText: rootInActiveWindow is null")
+        if (text.isBlank()) return false
+        
+        val rootNode = rootInActiveWindow ?: return false
+        val targetNode = findNodeByText(rootNode, text.lowercase())
+        
+        val result = if (targetNode != null) {
+            var clickResult = targetNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (!clickResult) {
+                val parent = targetNode.parent
+                clickResult = parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false
+                parent?.recycle()
+            }
+            clickResult
+        } else {
+            Log.w(TAG, "Could not find node with text: '$text'")
+            false
+        }
+        
+        targetNode?.recycle()
+        rootNode.recycle()
+        
+        return result
+    }
+
+    fun performClickAt(x: Float, y: Float): Boolean {
+        Log.d(TAG, "Performing CLICK at ($x, $y)")
+        
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             return false
         }
-        
-        return try {
-            val targetNode = findNodeByText(nodeInfo, text)
-            
-            val result = if (targetNode != null) {
-                val clickResult = targetNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                Log.d(TAG, "clickOnText: Click action result=$clickResult")
-                targetNode.recycle()
-                clickResult
-            } else {
-                Log.w(TAG, "clickOnText: No node found with text '$text'")
-                false
-            }
-            
-            nodeInfo.recycle()
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "clickOnText: Error clicking on text", e)
-            safeRecycle(nodeInfo)
-            false
-        }
+
+        val path = Path()
+        path.moveTo(x, y)
+
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 100))
+            .build()
+
+        return dispatchGesture(gesture, null, null)
     }
 
-    /**
-     * Find node by text
-     */
-    private fun findNodeByText(nodeInfo: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
-        if (nodeInfo.text?.toString()?.contains(text, ignoreCase = true) == true) {
-            return nodeInfo
+    private fun findNodeByText(node: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
+        val nodeText = node.text?.toString()?.lowercase() ?: ""
+        val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
+        
+        if (nodeText.contains(text) || contentDesc.contains(text)) {
+            return AccessibilityNodeInfo.obtain(node)
         }
         
-        for (i in 0 until nodeInfo.childCount) {
-            val child = nodeInfo.getChild(i) ?: continue
-            val found = findNodeByText(child, text)
-            if (found != null) return found
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val result = findNodeByText(child, text)
             child.recycle()
+            if (result != null) {
+                return result
+            }
         }
         
         return null
     }
 
-    /**
-     * Get all clickable nodes
-     */
-    fun getClickableNodes(): List<AccessibilityNodeInfo> {
-        val nodes = mutableListOf<AccessibilityNodeInfo>()
-        val nodeInfo = rootInActiveWindow ?: return nodes
-        collectClickableNodes(nodeInfo, nodes)
-        return nodes
-    }
-
-    private fun collectClickableNodes(nodeInfo: AccessibilityNodeInfo, list: MutableList<AccessibilityNodeInfo>) {
-        if (nodeInfo.isClickable) {
-            list.add(nodeInfo)
-        }
+    fun performSwipe(direction: String): Boolean {
+        Log.d(TAG, "Performing SWIPE: $direction")
         
-        for (i in 0 until nodeInfo.childCount) {
-            val child = nodeInfo.getChild(i) ?: continue
-            collectClickableNodes(child, list)
+        return when (direction.lowercase()) {
+            "up" -> performGestureScroll(false)
+            "down" -> performGestureScroll(true)
+            "left" -> performGestureScrollHorizontal(false)
+            "right" -> performGestureScrollHorizontal(true)
+            else -> false
         }
     }
 }
