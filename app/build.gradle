@@ -1,6 +1,6 @@
 plugins {
     id 'com.android.application'
-    id 'kotlin-android'
+    id 'org.jetbrains.kotlin.android'
 }
 
 android {
@@ -9,56 +9,26 @@ android {
 
     defaultConfig {
         applicationId "com.voiceassistant.base"
-        minSdk 26
+        minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0"
     }
 
-    signingConfigs {
-        // Use debug signing config for release builds in CI or when no release keystore is configured
-        // For production release signing, set these environment variables:
-        //   RELEASE_KEYSTORE_PATH, RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD
-        release {
-            def keystorePath = System.getenv('RELEASE_KEYSTORE_PATH') ?: "${System.getProperty('user.home')}/.android/debug.keystore"
-            def keystorePassword = System.getenv('RELEASE_KEYSTORE_PASSWORD') ?: "android"
-            def releaseKeyAlias = System.getenv('RELEASE_KEY_ALIAS') ?: "androiddebugkey"
-            def releaseKeyPassword = System.getenv('RELEASE_KEY_PASSWORD') ?: "android"
-            
-            storeFile file(keystorePath)
-            storePassword keystorePassword
-            keyAlias releaseKeyAlias
-            keyPassword releaseKeyPassword
-        }
-    }
-
     buildTypes {
-        debug {
-            debuggable true
-            minifyEnabled false
-        }
         release {
-            debuggable false
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
         }
     }
-
+    
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-
+    
     kotlinOptions {
         jvmTarget = '17'
-    }
-    
-    // Output APK with custom name
-    applicationVariants.all { variant ->
-        variant.outputs.all {
-            outputFileName = "VoiceAssistant-${variant.versionName}-${variant.buildType.name}.apk"
-        }
     }
 }
 
@@ -66,15 +36,5 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'androidx.work:work-runtime-ktx:2.9.0'
-    implementation 'androidx.lifecycle:lifecycle-service:2.7.0'
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
-}
-
-android {
-    lint {
-        abortOnError false
-        checkReleaseBuilds false
-    }
 }
